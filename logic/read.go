@@ -75,11 +75,3 @@ func FromText(promptText string) Prompt {
 	prompt.FindVariables()
 	return prompt
 }
-
-// func encodePrompt(p *Prompt) string {
-
-// }
-
-// func decodePrompt(encodedString string) Prompt {
-
-// }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	initRuntime "github.com/belbcode/prompt-tracker/cli/init"
+	"github.com/belbcode/prompt-tracker/utils"
 )
 
 func main() {
@@ -18,6 +19,12 @@ func main() {
 			return
 		}
 		initRuntime.CreateConfig(parentDir)
+		cwd := utils.GetCwd()
+		config, err := utils.GetConfig(cwd)
+		if err != nil {
+			fmt.Println(":(")
+		}
+		initRuntime.Scaffold(config)
 
 		// defer func() {
 		// 	err := os.Remove(parentDir)

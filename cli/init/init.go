@@ -10,10 +10,14 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/belbcode/prompt-tracker/cli/commit"
 	utils "github.com/belbcode/prompt-tracker/utils"
 )
 
 var arguments []string = []string{"init", "commit", "help"}
+
+const dirname string = ".pt"
+const ownerReadWrite = 0700 // 0700 sets read, write, and execute permissions for the owner only
 
 func ParseArgs() (string, error) {
 	if len(os.Args) < 2 {
@@ -28,8 +32,6 @@ func ParseArgs() (string, error) {
 }
 
 func Init() (string, error) {
-	const dirname string = ".pt"
-	const ownerReadWrite = 0700 // 0700 sets read, write, and execute permissions for the owner only
 
 	fileInfo, dirErr := os.Stat(dirname)
 	if dirErr == nil {
@@ -55,20 +57,24 @@ func Init() (string, error) {
 
 }
 
-type Config struct {
-	NewDate      int64
-	TrackedFiles map[string]FileObject
-}
-
-type FileObject struct {
-	FullPath   string
-	Properties fs.FileInfo
+func ExtractFileInfo(f fs.FileInfo) utils.FileInfo {
+	return utils.FileInfo{
+		IsDir:   f.IsDir(),
+		Name:    f.Name(),
+		Size:    f.Size(),
+		ModTime: f.ModTime().Unix(),
+	}
 }
 
 func CreateConfig(parentDirectory string) {
 
 	trackedFiles := os.Args[2:]
-	fileObjects := make(map[string]FileObject, len(trackedFiles))
+	fileObjects := make(map[string]utils.FileObject, len(trackedFiles))
+	cwd, err := os.Getwd()
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
 
 	if len(trackedFiles) == 0 {
 		panic(errors.New("No files specified to be tracked"))
@@ -78,33 +84,34 @@ func CreateConfig(parentDirectory string) {
 			fileInfo, err := os.Stat(file)
 			if err != nil {
 				//maybe create a tracked file if a certain flag is raised in future
-				panic(errors.New("File to be tracked does not exist."))
+				panic(errors.New("Error trying to locate file, may not exist" + err.Error()))
 			}
-			cwd, err := os.Getwd()
+			fi := ExtractFileInfo(fileInfo)
+
+			originalPath := filepath.Join(cwd, file)
+			uuid := utils.HashName(originalPath)
 			if err != nil {
 				fmt.Println("Error:", err)
 				return
 			}
-			fullpath := filepath.Join(cwd, file)
-			uuid, err := utils.GenerateRandomID(16)
-			if err != nil {
-				fmt.Println("Error:", err)
-				return
-			}
-			println(fullpath, fileInfo)
-			fileObjects[uuid] = FileObject{
-				FullPath:   fullpath,
-				Properties: fileInfo,
+			repoPath := filepath.Join(cwd, "/.pt/", uuid)
+
+			fileObjects[uuid] = utils.FileObject{
+				OriginalPath: originalPath,
+				RepoPath:     repoPath,
+				Properties:   fi,
 			}
 
 		}
 	}
-	config := &Config{
+	trackedPath := filepath.Join(cwd, "/.pt/")
+	config := &utils.Config{
 		TrackedFiles: fileObjects,
-		NewDate:      time.Now().Unix(),
+		InitTime:     time.Now().Unix(),
+		TrackedPath:  trackedPath,
 	}
 
-	jsonData, err := json.Marshal(config)
+	jsonData, err := json.MarshalIndent(config, "\n", "	")
 	if err != nil {
 		fmt.Println("Error:", err)
 		return
@@ -119,6 +126,33 @@ func CreateConfig(parentDirectory string) {
 	}
 }
 
-func Scaffold(parentDirectory string, trackedFiles []string) {
-	// os.Mkdir(parentDirectory + "/")
+func Scaffold(config utils.Config) error {
+	// config, err := utils.GetConfig(cwd)
+	// if err != nil {
+	// 	panic(err.Error())
+	// }
+	for _, fileObject := range config.TrackedFiles {
+		err := os.Mkdir(fileObject.RepoPath, ownerReadWrite)
+		if err != nil {
+			fmt.Println("Unable to track: ", fileObject.Properties.Name)
+			//Remove file from config
+		}
+		// initialize two files to be commited, one empty and the original
+		empty := make([]byte, 0)
+		name, err := utils.GenerateRandomID(16)
+		path := filepath.Join(fileObject.RepoPath, name)
+		os.Create(path)
+		os.WriteFile(path, empty, ownerReadWrite)
+
+		commit.CommitFile(fileObject.OriginalPath)
+
+		// content, err := os.ReadFile(fileObject.OriginalPath)
+		// fmt.Println(string(content))
+		// name, err = utils.GenerateRandomID(16)
+		// path = filepath.Join(fileObject.RepoPath, name)
+		// os.Create(path)
+		// os.WriteFile(path, content, ownerReadWrite)
+
+	}
+	return nil
 }
