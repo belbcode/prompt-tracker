@@ -1,11 +1,13 @@
-package init
+package initRuntime
 
 import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"time"
 
 	utils "github.com/belbcode/prompt-tracker/utils"
@@ -14,18 +16,18 @@ import (
 var arguments []string = []string{"init", "commit", "help"}
 
 func ParseArgs() (string, error) {
-	if len(os.Args) < 1 {
+	if len(os.Args) < 2 {
 		fmt.Println()
 		return "", errors.New("Provide argument for pt. Example: pt init <file-name>")
 	}
 
-	if utils.Includes(arguments, os.Args[0]) {
-		return os.Args[0], nil
+	if utils.Includes(arguments, os.Args[1]) {
+		return os.Args[1], nil
 	}
-	return "", errors.New(os.Args[0] + "is not an argument use --help to see list of valid arguments") //Do this
+	return "", errors.New(os.Args[1] + "is not an argument use --help to see list of valid arguments") //Do this
 }
 
-func Init() {
+func Init() (string, error) {
 	const dirname string = ".pt"
 	const ownerReadWrite = 0700 // 0700 sets read, write, and execute permissions for the owner only
 
@@ -36,42 +38,87 @@ func Init() {
 		} else {
 			fmt.Println("Path exists, but it's not a directory.")
 		}
-		return
+		return "", errors.New("") //CHANGE
 	} else if os.IsNotExist(dirErr) {
 		fmt.Println("Directory does not exist.")
 		err := os.Mkdir(dirname, ownerReadWrite)
 		if err != nil {
 			fmt.Println("There was an error initializing the app. May the lord have mercy on your os.", err)
-			return
+			return "", errors.New("") //CHANGE
 		}
+		return dirname, nil
 
 	} else {
 		fmt.Println("Error:", dirErr)
+		return "", errors.New("") //CHANGE
 	}
 
 }
 
 type Config struct {
-	date         int64
-	trackedFiles []string
+	NewDate      int64
+	TrackedFiles map[string]FileObject
 }
 
-func createConfig() {
-	trackedFiles := os.Args[1:]
-	config := Config{
-		trackedFiles: trackedFiles,
-		date:         time.Now().Unix(),
+type FileObject struct {
+	FullPath   string
+	Properties fs.FileInfo
+}
+
+func CreateConfig(parentDirectory string) {
+
+	trackedFiles := os.Args[2:]
+	fileObjects := make(map[string]FileObject, len(trackedFiles))
+
+	if len(trackedFiles) == 0 {
+		panic(errors.New("No files specified to be tracked"))
+	} else {
+		for _, file := range trackedFiles {
+			//may need to fix this
+			fileInfo, err := os.Stat(file)
+			if err != nil {
+				//maybe create a tracked file if a certain flag is raised in future
+				panic(errors.New("File to be tracked does not exist."))
+			}
+			cwd, err := os.Getwd()
+			if err != nil {
+				fmt.Println("Error:", err)
+				return
+			}
+			fullpath := filepath.Join(cwd, file)
+			uuid, err := utils.GenerateRandomID(16)
+			if err != nil {
+				fmt.Println("Error:", err)
+				return
+			}
+			println(fullpath, fileInfo)
+			fileObjects[uuid] = FileObject{
+				FullPath:   fullpath,
+				Properties: fileInfo,
+			}
+
+		}
 	}
-	jsonData, err := json.MarshalIndent(config, "", "    ")
+	config := &Config{
+		TrackedFiles: fileObjects,
+		NewDate:      time.Now().Unix(),
+	}
+
+	jsonData, err := json.Marshal(config)
 	if err != nil {
 		fmt.Println("Error:", err)
 		return
 	}
+	jsonString := string(jsonData)
 
-	err = ioutil.WriteFile("pt.config.json", jsonData, 0644)
+	err = ioutil.WriteFile(parentDirectory+"/pt.config.json", []byte(jsonString), 0644)
 	if err != nil {
 		fmt.Println("Error:", err)
 	} else {
 		fmt.Println("File pt.config.json created successfully.")
 	}
+}
+
+func Scaffold(parentDirectory string, trackedFiles []string) {
+	// os.Mkdir(parentDirectory + "/")
 }
