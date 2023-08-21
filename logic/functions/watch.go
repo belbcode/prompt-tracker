@@ -24,13 +24,6 @@ func Watch() {
 	}
 	defer file.Close()
 
-	// initContent, err := readContent(filePath)
-	// println(initContent)
-	// if err != nil {
-	// 	fmt.Println("Error reading content:", err)
-	// 	return
-	// }
-
 	// fileDescriptor := int(file.Fd())
 
 	// Create an inotify instance
@@ -64,7 +57,6 @@ func Watch() {
 			event := (*syscall.InotifyEvent)(unsafe.Pointer(&buf[offset]))
 			if event.Wd == 1 && event.Mask&syscall.IN_MODIFY > 0 {
 				content, err := readContent(filePath)
-				fmt.Println(event.Wd, event.Cookie, event.Len, event.Name, event.Mask, event)
 				if err != nil {
 					//handle
 				}
