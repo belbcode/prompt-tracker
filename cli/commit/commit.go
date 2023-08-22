@@ -12,16 +12,15 @@ import (
 
 const ownerReadWrite = 0700 // 0700 sets read, write, and execute permissions for the owner only
 
-func CommitFile(currentFile string) {
+func CommitFile(currentFile string) error {
 
-	hashed := utils.HashName(currentFile)
+	hashed := utils.HashString(currentFile)
 	latestFile, err := utils.GetLatestTrackedFile(hashed)
 	diff := GetDiff(latestFile, currentFile)
 
 	bytes, err := os.ReadFile(currentFile)
 	if err != nil {
-		fmt.Println(err)
-		return
+		return err
 	}
 
 	cwd := utils.GetCwd()
@@ -37,6 +36,7 @@ func CommitFile(currentFile string) {
 	file.Write([]byte(unifiedDiffString))
 	file.Seek(int64(len([]byte(unifiedDiffString))), 0)
 	file.Write(bytes)
+	return nil
 }
 
 func GetDiff(fromFile string, toFile string) difflib.UnifiedDiff {

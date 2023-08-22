@@ -16,8 +16,8 @@ func GenerateRandomID(length int) (string, error) {
 	return hex.EncodeToString(bytes), nil
 }
 
-func HashName(n string) string {
-	bytes := []byte(n)
+func HashString(s string) string {
+	bytes := []byte(s)
 	hasher := sha1.New()
 	hasher.Write(bytes)
 	sha := base64.URLEncoding.EncodeToString(hasher.Sum(nil))

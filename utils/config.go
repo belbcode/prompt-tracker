@@ -9,7 +9,7 @@ import (
 
 type Config struct {
 	InitTime     int64
-	TrackedPath  string
+	RepoDir      string
 	TrackedFiles map[string]FileObject
 }
 
@@ -77,5 +77,5 @@ func GetLatestTrackedFile(fileHash string) (latestCommit string, err error) {
 	cwd := GetCwd()
 	config, err := GetConfig(cwd)
 	entries, err := os.ReadDir(config.TrackedFiles[fileHash].RepoPath)
-	return filepath.Join(config.TrackedPath, fileHash, entries[len(entries)-1].Name()), err
+	return filepath.Join(config.RepoDir, fileHash, entries[len(entries)-1].Name()), err
 }
