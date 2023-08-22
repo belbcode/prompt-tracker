@@ -35,9 +35,10 @@ func createConfig(args []string) utils.Config {
 		hashedName := utils.HashString(ogPath)
 
 		fileObjects[hashedName] = utils.FileObject{
-			OriginalPath: ogPath,
-			RepoPath:     filepath.Join(cwd, repoPath, hashedName),
-			Properties:   ExtractFileInfo(fileInfo),
+			SourceFile: ogPath,
+			RepoPath:   filepath.Join(cwd, repoPath, hashedName),
+			Properties: ExtractFileInfo(fileInfo),
+			LastCommit: utils.HashString(""), //The first file to be initialized will be empty
 		}
 
 	}
@@ -70,10 +71,10 @@ func scaffold(config utils.Config) (err error) {
 
 	//scaffold repo
 	for _, file := range config.TrackedFiles {
-		dirName := utils.HashString(file.OriginalPath)
+		dirName := utils.HashString(file.SourceFile)
 		err = os.Mkdir(filepath.Join(config.RepoDir, dirName), ownerReadWrite)
 		data := ""
-		os.WriteFile(filepath.Join(config.RepoDir, dirName, utils.HashString(data)), []byte(data), ownerReadWrite)
+		err = os.WriteFile(filepath.Join(config.RepoDir, dirName, utils.HashString(data)), []byte(data), ownerReadWrite)
 	}
 	return err
 }

@@ -12,31 +12,94 @@ import (
 
 const ownerReadWrite = 0700 // 0700 sets read, write, and execute permissions for the owner only
 
-func CommitFile(currentFile string) error {
+func getRelevantCommitPaths(arg string, config utils.Config) (sourcePath string, commitPath string) {
 
-	hashed := utils.HashString(currentFile)
-	latestFile, err := utils.GetLatestTrackedFile(hashed)
-	diff := GetDiff(latestFile, currentFile)
+	hashedFileName := utils.HashString(arg)
+	sourcePath = config.TrackedFiles[hashedFileName].SourceFile
+	commitPath = config.TrackedFiles[hashedFileName].LastCommit
+	return sourcePath, commitPath
+}
 
-	bytes, err := os.ReadFile(currentFile)
-	if err != nil {
-		return err
+func isSameContent(bytesSource []byte, bytesLastCommit []byte) bool {
+	//true: no change, false: yes change
+	//this can be optimized with utils.SoftCompare and technically the SHA1 of bytesLastCommit is already encoded within its name
+	//you can also check if the file had been modified since the last commit, a lot of optimizations in this function
+	if len(bytesSource) == len(bytesLastCommit) {
+		if utils.SoftCompare(bytesSource, bytesLastCommit) {
+			return utils.HardCompare(bytesSource, bytesLastCommit) //
+		}
 	}
+	return false //change detected
+}
 
+func getDiff(bytesSource []byte, bytesLastCommit []byte) difflib.UnifiedDiff {
+	return difflib.UnifiedDiff{
+		A:        difflib.SplitLines(string(bytesLastCommit)),
+		B:        difflib.SplitLines(string(bytesSource)),
+		FromFile: "Original",
+		//FromDate: FileInfo.ModTime().Unix()
+		//ToDate: time.Now().Unix()
+		ToFile:  "Current",
+		Context: 3,
+	}
+}
+
+func writeDiff(commitPath string, diff difflib.UnifiedDiff) error {
+	file, err := os.Create(commitPath)
+	err = difflib.WriteUnifiedDiff(file, diff)
+	return err
+}
+
+// func writeConfig
+
+func CommitFile(args []string) error {
 	cwd := utils.GetCwd()
 	config, err := utils.GetConfig(cwd)
-	name, err := utils.GenerateRandomID(16)
-	path := filepath.Join(config.TrackedFiles[hashed].RepoPath, name)
+	if err != nil {
+		panic("Error retrieving ConfigFile, file structure or configuration file may have been tampered with: " + err.Error())
+	}
 
-	file, err := os.Create(path)
-	defer file.Close()
-	// Write data using the Writer interface
+	for _, arg := range args {
 
-	unifiedDiffString, err := difflib.GetUnifiedDiffString(diff)
-	file.Write([]byte(unifiedDiffString))
-	file.Seek(int64(len([]byte(unifiedDiffString))), 0)
-	file.Write(bytes)
-	return nil
+		sourceFilePath, commitFilePath := getRelevantCommitPaths(arg, config)
+		sourceBytes, err := os.ReadFile(sourceFilePath)
+		commitBytes, err := os.ReadFile(commitFilePath)
+
+		diff := getDiff(sourceBytes, commitBytes)
+
+		newCommitName := utils.HashString(string(sourceBytes))
+		hashedFileName := utils.HashString(arg)
+		newCommitPath := filepath.Join(config.TrackedFiles[hashedFileName].RepoPath, newCommitName)
+
+		err = writeDiff(newCommitPath, diff)
+		if err != nil {
+			return err
+		}
+	}
+
+	// hashed := utils.HashString(currentFile)
+	// latestFile, err := utils.GetLatestTrackedFile(hashed)
+	// diff := GetDiff(latestFile, currentFile)
+
+	// bytes, err := os.ReadFile(currentFile)
+	// if err != nil {
+	// 	return err
+	// }
+
+	// cwd := utils.GetCwd()
+	// config, err := utils.GetConfig(cwd)
+	// name, err := utils.GenerateRandomID(16)
+	// path := filepath.Join(config.TrackedFiles[hashed].RepoPath, name)
+
+	// file, err := os.Create(path)
+	// defer file.Close()
+	// // Write data using the Writer interface
+
+	// unifiedDiffString, err := difflib.GetUnifiedDiffString(diff)
+	// file.Write([]byte(unifiedDiffString))
+	// file.Seek(int64(len([]byte(unifiedDiffString))), 0)
+	// file.Write(bytes)
+	// return nil
 }
 
 func GetDiff(fromFile string, toFile string) difflib.UnifiedDiff {

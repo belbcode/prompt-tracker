@@ -14,9 +14,10 @@ type Config struct {
 }
 
 type FileObject struct {
-	OriginalPath string
-	RepoPath     string
-	Properties   FileInfo
+	SourceFile string
+	RepoPath   string
+	Properties FileInfo
+	LastCommit string
 }
 
 type FileInfo struct {
