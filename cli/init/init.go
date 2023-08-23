@@ -1,9 +1,7 @@
 package initRuntime
 
 import (
-	"encoding/json"
 	"fmt"
-	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
@@ -37,7 +35,7 @@ func createConfig(args []string) utils.Config {
 		fileObjects[hashedName] = utils.FileObject{
 			SourceFile: ogPath,
 			RepoPath:   filepath.Join(cwd, repoPath, hashedName),
-			Properties: ExtractFileInfo(fileInfo),
+			Properties: utils.ExtractFileInfo(fileInfo),
 			LastCommit: utils.HashString(""), //The first file to be initialized will be empty
 		}
 
@@ -45,32 +43,23 @@ func createConfig(args []string) utils.Config {
 	repoDir := filepath.Join(cwd, repoPath)
 
 	config := &utils.Config{
-		TrackedFiles: fileObjects,
-		InitTime:     time.Now().Unix(),
-		RepoDir:      repoDir,
+		Objects:  fileObjects,
+		InitTime: time.Now().Unix(),
+		RepoDir:  repoDir,
 	}
 	return *config
-}
-
-func configToJSON(config utils.Config) []byte {
-	jsonData, err := json.MarshalIndent(config, "\n", "	")
-	if err != nil {
-		panic(err)
-	}
-	return jsonData
-
 }
 
 func scaffold(config utils.Config) (err error) {
 	configFilename := "/pt.config.json"
 
 	//write config file
-	jsonData := configToJSON(config)
+	jsonData := utils.ConfigToJSON(config)
 	err = os.Mkdir(config.RepoDir, ownerReadWrite)
 	err = os.WriteFile(filepath.Join(config.RepoDir, configFilename), jsonData, 0644)
 
 	//scaffold repo
-	for _, file := range config.TrackedFiles {
+	for _, file := range config.Objects {
 		dirName := utils.HashString(file.SourceFile)
 		err = os.Mkdir(filepath.Join(config.RepoDir, dirName), ownerReadWrite)
 		data := ""
@@ -89,13 +78,4 @@ func Init(args []string) {
 
 	fmt.Println("Initialization successful, created repo @ ", config.RepoDir)
 
-}
-
-func ExtractFileInfo(f fs.FileInfo) utils.FileInfo {
-	return utils.FileInfo{
-		IsDir:   f.IsDir(),
-		Name:    f.Name(),
-		Size:    f.Size(),
-		ModTime: f.ModTime().Unix(),
-	}
 }

@@ -13,10 +13,13 @@ import (
 const ownerReadWrite = 0700 // 0700 sets read, write, and execute permissions for the owner only
 
 func getRelevantCommitPaths(arg string, config utils.Config) (sourcePath string, commitPath string) {
-
-	hashedFileName := utils.HashString(arg)
-	sourcePath = config.TrackedFiles[hashedFileName].SourceFile
-	commitPath = config.TrackedFiles[hashedFileName].LastCommit
+	hashedFileKey := utils.HashString(arg)
+	Object, exists := config.Objects[hashedFileKey]
+	if !exists {
+		panic("file specified in commit: " + arg + " has not been initialized") //Create ADD Option
+	}
+	sourcePath = Object.SourceFile
+	commitPath = Object.LastCommit
 	return sourcePath, commitPath
 }
 
@@ -46,17 +49,18 @@ func getDiff(bytesSource []byte, bytesLastCommit []byte) difflib.UnifiedDiff {
 
 func writeDiff(commitPath string, diff difflib.UnifiedDiff) error {
 	file, err := os.Create(commitPath)
+	defer file.Close()
 	err = difflib.WriteUnifiedDiff(file, diff)
 	return err
 }
 
 // func writeConfig
 
-func CommitFile(args []string) error {
+func CommitFiles(args []string) error {
 	cwd := utils.GetCwd()
 	config, err := utils.GetConfig(cwd)
 	if err != nil {
-		panic("Error retrieving ConfigFile, file structure or configuration file may have been tampered with: " + err.Error())
+		return err
 	}
 
 	for _, arg := range args {
@@ -69,14 +73,16 @@ func CommitFile(args []string) error {
 
 		newCommitName := utils.HashString(string(sourceBytes))
 		hashedFileName := utils.HashString(arg)
-		newCommitPath := filepath.Join(config.TrackedFiles[hashedFileName].RepoPath, newCommitName)
+		newCommitPath := filepath.Join(config.Objects[hashedFileName].RepoPath, newCommitName)
 
 		err = writeDiff(newCommitPath, diff)
 		if err != nil {
 			return err
 		}
+
 	}
 
+	return utils.UpdateConfig()
 	// hashed := utils.HashString(currentFile)
 	// latestFile, err := utils.GetLatestTrackedFile(hashed)
 	// diff := GetDiff(latestFile, currentFile)

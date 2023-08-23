@@ -2,14 +2,21 @@ package main
 
 import (
 	"fmt"
+	"io/fs"
 	"log"
+	"os"
+	"path/filepath"
 
+	"github.com/belbcode/prompt-tracker/cli/commit"
 	initRuntime "github.com/belbcode/prompt-tracker/cli/init"
+	"github.com/belbcode/prompt-tracker/utils"
 	"github.com/spf13/cobra"
 )
 
 var (
-	rootCmd = &cobra.Command{
+	projectFlag bool
+	targetFlag  bool
+	rootCmd     = &cobra.Command{
 		Use:   "pt",
 		Short: "A prompt tracking program.",
 		Long: `This program tracks relevant metadata of text files containing prompts.
@@ -21,15 +28,48 @@ It supports development of complex prompt-chains.`,
 	initCmd = &cobra.Command{
 		Use:   "init [files to track]",
 		Short: "Initializes Project.",
-		Args:  cobra.MinimumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
+			var cwd string = utils.GetCwd()
+			if targetFlag {
+				cwd, err := filepath.Abs(args[0])
+				print(cwd, args[0])
+				if err != nil {
+					panic(err)
+				}
+				fi, err := os.Stat(cwd)
+				if err != nil {
+					panic(err)
+				}
+				if !fi.IsDir() {
+					panic("Need specify a directory")
+				}
+
+			}
+			if projectFlag {
+				entries, err := os.ReadDir(cwd)
+				if err != nil {
+					panic("Failed to access directory, may lack permissions.")
+				}
+				args = utils.MapToString[fs.DirEntry](entries, func(entry fs.DirEntry) string {
+					return entry.Name()
+				})
+			}
 			initRuntime.Init(args)
+		},
+	}
+	commitCmd = &cobra.Command{
+		Use:   "commit [files to commit]",
+		Short: "Commits changes into repo.",
+		Run: func(cmd *cobra.Command, args []string) {
+			commit.CommitFiles(args)
 		},
 	}
 )
 
 func init() {
-	rootCmd.AddCommand(initCmd)
+	rootCmd.Flags().BoolVarP(&projectFlag, "projectFlag", "p", true, "set arguments to all files in the project directory")
+	initCmd.Flags().BoolVarP(&targetFlag, "targetFlag", "t", false, "set project directory")
+	rootCmd.AddCommand(initCmd, commitCmd)
 }
 
 func main() {
